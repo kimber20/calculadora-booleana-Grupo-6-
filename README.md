@@ -2,8 +2,14 @@
 Calculadora Booleana
 ## 📖 Guía de Uso
 
+🔗 **Acceder a la aplicación:**  
+👉 [Abrir Logic Calculator](https://kqzaxqdrybyudpwxwlrwqt.streamlit.app/)
+
+---
+
 ### 🧠 ¿Qué hace la app?
-La calculadora booleana permite construir expresiones lógicas y generar automáticamente su tabla de verdad.
+La calculadora booleana permite construir expresiones lógicas y generar automáticamente su tabla de verdad.  
+Está desarrollada como una aplicación web interactiva usando Streamlit, lo que permite ejecutarla directamente en el navegador sin instalación. :contentReference[oaicite:0]{index=0}
 
 ---
 
