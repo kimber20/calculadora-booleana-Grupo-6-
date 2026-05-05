@@ -3,7 +3,7 @@ Calculadora Booleana
 ## 📖 Guía de Uso
 
 🔗 **Acceder a la aplicación:**  
-👉 [Abrir Logic Calculator](https://kqzaxqdrybyudpwxwlrwqt.streamlit.app/)
+👉 [Abrir Logic Calculator](http://192.168.1.13:8502)
 
 ---
 
