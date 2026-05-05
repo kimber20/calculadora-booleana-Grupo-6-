@@ -1,50 +1,72 @@
 import pandas as pd
 import itertools
 import re
+import io
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet
 
 def extraer_variables(expr):
-    return sorted(set(re.findall(r'\b[A-Z]\b', expr)))
+    # Detecta variables A, B, C, D evitando letras dentro de operadores
+    temp = re.sub(r'(NOT|AND|OR|XOR|->|<->)', ' ', expr)
+    return sorted(list(set(re.findall(r'[A-D]', temp))))
 
 def evaluar_expresion(expr, valores):
-    expr = expr.upper()
-    expr = expr.replace("AND", " and ").replace("OR", " or ").replace("NOT", " not ").replace("XOR", " ^ ")
-    expr = re.sub(r'(\w+)\s*->\s*(\w+)', r'(not \1 or \2)', expr)
-    expr = re.sub(r'(\w+)\s*<->\s*(\w+)', r'(\1 == \2)', expr)
-
-    for var, val in valores.items():
-        expr = re.sub(rf'\b{var}\b', str(bool(val)), expr)
-
+    # BLINDAJE: Agregamos espacios alrededor de CUALQUIER símbolo especial
+    temp = re.sub(r'([()∧¬∨⊕→↔]|NOT|AND|OR|XOR|->|<->|0|1)', r' \1 ', expr)
+    
+    # Traducción a sintaxis de Python pura
+    op_py = temp.replace("NOT", " not ").replace("AND", " and ").replace("XOR", " != ").replace("OR", " or ")
+    op_py = op_py.replace("<->", " == ").replace("->", " <= ")
+    op_py = op_py.replace("1", " True ").replace("0", " False ")
+    op_py = re.sub(r'\bnot\s*(\([^()]*\]|[A-Za-z0-9_]+)', r'(not \1)', op_py)
+    op_py = op_py.strip()
+    
     try:
-        return int(eval(expr))
-    except:
-        raise ValueError("Expresión inválida")
+        # Evalúa la expresión de forma aislada para evitar errores de sintaxis[cite: 2]
+        resultado = eval(op_py, {"__builtins__": None}, valores)
+        return 1 if resultado else 0
+    except Exception:
+        return "Error"
 
 def generar_tabla(expr):
     variables = extraer_variables(expr)
-    if not variables:
-        raise ValueError("No hay variables válidas")
-
-    combinaciones = list(itertools.product([0, 1], repeat=len(variables)))
+    combinaciones = list(itertools.product([1, 0], repeat=len(variables)))
     
-    # Lista para la previsualización en la App (Formato Tabla)
-    data_tabla = []
-    # Lista para el formato especial del ejemplo visual (Formato CSV)
-    data_visual = []
-
-    for comb in combinaciones:
-        valores = dict(zip(variables, comb))
-        resultado = evaluar_expresion(expr, valores)
-        
-        # 1. Guardamos datos para la tabla normal de Streamlit
-        data_tabla.append(list(comb) + [resultado])
-        
-        # 2. Creamos el formato "00 → 0" solicitado
-        combinacion_str = "".join(map(str, comb))
-        fila_visual = f"{combinacion_str} → {resultado}"
-        data_visual.append(fila_visual)
-
-    df_normal = pd.DataFrame(data_tabla, columns=variables + ["Resultado"])
-    # Este es el DataFrame que usaremos para el CSV descargable
-    df_csv = pd.DataFrame(data_visual, columns=["Tabla de Verdad Binaria"])
+    filas = []
+    for combo in combinaciones:
+        valores = dict(zip(variables, [bool(v) for v in combo]))
+        res = evaluar_expresion(expr, valores)
+        filas.append(list(combo) + [res])
     
-    return variables, df_normal, df_csv
+    df_resultado = pd.DataFrame(filas, columns=variables + ["Resultado"])
+    return variables, df_resultado
+
+def generar_pdf(expr, variables, df_normal):
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    styles = getSampleStyleSheet()
+    elementos = []
+
+    elementos.append(Paragraph("Reporte de Tabla de Verdad", styles['Title']))
+    elementos.append(Spacer(1, 12))
+    elementos.append(Paragraph(f"<b>Expresión:</b> {expr}", styles['Normal']))
+    elementos.append(Spacer(1, 24))
+
+    encabezados = variables + ["Resultado"]
+    datos_pdf = [encabezados] + df_normal.values.tolist()
+
+    tabla = Table(datos_pdf)
+    style = TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+    ])
+    tabla.setStyle(style)
+    
+    elementos.append(tabla)
+    doc.build(elementos)
+    buffer.seek(0)
+    return buffer.getvalue()
